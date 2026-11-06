@@ -12,12 +12,14 @@ To satisfy this directly without unnecessary bloat:
 ---
 
 ## 2. Solution Architecture & Data Model
+
+```text
 +-------------------------------------------------------------+
 |                  Client Layer (Thin Web UI)                 |
 |   - Supervisor Round Transition Selector & Metrics Table    |
 |   - Child Registry, Status Timeline & Encounter Form        |
 +------------------------------+------------------------------+
-| HTTP / JSON
+                               | HTTP / JSON
 +------------------------------v------------------------------+
 |             Application Layer (FastAPI Controllers)         |
 |   - GET  /api/rounds                                        |
@@ -26,22 +28,24 @@ To satisfy this directly without unnecessary bloat:
 |   - GET  /api/supervisor/transitions?from_round=&to_round=  |
 |   - POST /api/encounters                                    |
 +------------------------------+------------------------------+
-|
+                               | Calls domain logic
 +------------------------------v------------------------------+
 |            Reusable Domain Engine (zero_dose_engine)        |
 |   - evaluate_encounter()                                    |
 |   - compute_child_timeline()                                |
 |   - get_round_status_map()                                  |
 +------------------------------+------------------------------+
-| Reads / Writes
+                               | Reads / Writes
 +------------------------------v------------------------------+
 |            Persistence Layer (SQLite Database)              |
 |   - children   (child_id, name, dob, guardian, settlement)  |
 |   - rounds     (round_id, name, start_date, end_date)       |
 |   - encounters (event_id, child_id, round_id, answers...)   |
 +-------------------------------------------------------------+
+```
 
 ### Relational Schema (SQLite)
+
 * `children`: `child_id` (PK, string), `name` (string), `dob` (date), `guardian_name` (string), `settlement` (string)
 * `rounds`: `round_id` (PK, string), `name` (string), `start_date` (date), `end_date` (date)
 * `encounters`: `event_id` (PK, string), `child_id` (FK, string), `round_id` (FK, string), `device_id` (string), `recorded_at` (ISO timestamp), `type` (enumeration/revisit), `zero_dose_answer` (boolean/null), `vaccinated_since_last` (string/null), `vaccinated_elsewhere` (boolean/null), `comment` (text/null)
@@ -72,6 +76,13 @@ To satisfy this directly without unnecessary bloat:
 
 ## 5. What We'd Do With One More Day
 
-1. **Offline-First Synchronization:** Implement an IndexedDB client cache with a Service Worker to allow field recorders to capture revisits in zero-connectivity environments and sync when a signal is acquired.
-2. **Geospatial Settlement Analytics:** Integrate Leaflet/MapLibre to visualize geographic clusters of remaining zero-dose children across settlements to guide supervisor team allocations.
-3. **Batch Encounter Ingestion:** Provide a bulk `/api/encounters/batch` endpoint supporting atomic batch inserts and conflict resolution for field devices returning from remote campaign sectors.
+1. **Enterprise Persistence Migration (PostgreSQL / Distributed DB):**
+   * *SQLite Concurrency Bottlenecks:* SQLite is ideal for zero-setup execution, but its single-writer file-locking model causes write-lock contention (`database is locked`) when hundreds of field enumerators sync records simultaneously. It also blocks deploying multiple stateless, horizontally scaled container replicas behind a load balancer.
+   * *Production Setup:* Replace SQLite with a managed PostgreSQL cluster (e.g., AWS Aurora / Supabase) featuring connection pooling (PgBouncer), read-replicas for analytical supervisor queries, and point-in-time recovery.
+2. **Offline-First Synchronization & Client Caching:**
+   * Implement an IndexedDB client store backed by Service Workers on field tablets to cache rosters locally, enabling uninterrupted enumeration and revisit entry in zero-connectivity areas.
+   * Expose an idempotent `/api/encounters/sync` batch endpoint resolving queue replays via event timestamps (`recorded_at`) and UUIDs.
+3. **Geospatial Settlement Analytics & Heatmaps:**
+   * Integrate Leaflet/MapLibre to visualize geographic clusters of remaining zero-dose children across settlements to guide supervisor team allocations between rounds.
+4. **Automated End-to-End Test Pipelines:**
+   * Add Playwright browser automation tests covering full supervisor UI workflows and container integration within CI/CD.
