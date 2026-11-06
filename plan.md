@@ -12,12 +12,14 @@ To satisfy this directly without unnecessary bloat:
 ---
 
 ## 2. Solution Architecture & Data Model
+
+```text
 +-------------------------------------------------------------+
 |                  Client Layer (Thin Web UI)                 |
 |   - Supervisor Round Transition Selector & Metrics Table    |
 |   - Child Registry, Status Timeline & Encounter Form        |
 +------------------------------+------------------------------+
-| HTTP / JSON
+                               | HTTP / JSON
 +------------------------------v------------------------------+
 |             Application Layer (FastAPI Controllers)         |
 |   - GET  /api/rounds                                        |
@@ -26,22 +28,24 @@ To satisfy this directly without unnecessary bloat:
 |   - GET  /api/supervisor/transitions?from_round=&to_round=  |
 |   - POST /api/encounters                                    |
 +------------------------------+------------------------------+
-|
+                               | Calls domain logic
 +------------------------------v------------------------------+
 |            Reusable Domain Engine (zero_dose_engine)        |
 |   - evaluate_encounter()                                    |
 |   - compute_child_timeline()                                |
 |   - get_round_status_map()                                  |
 +------------------------------+------------------------------+
-| Reads / Writes
+                               | Reads / Writes
 +------------------------------v------------------------------+
 |            Persistence Layer (SQLite Database)              |
 |   - children   (child_id, name, dob, guardian, settlement)  |
 |   - rounds     (round_id, name, start_date, end_date)       |
 |   - encounters (event_id, child_id, round_id, answers...)   |
 +-------------------------------------------------------------+
+```
 
 ### Relational Schema (SQLite)
+
 * `children`: `child_id` (PK, string), `name` (string), `dob` (date), `guardian_name` (string), `settlement` (string)
 * `rounds`: `round_id` (PK, string), `name` (string), `start_date` (date), `end_date` (date)
 * `encounters`: `event_id` (PK, string), `child_id` (FK, string), `round_id` (FK, string), `device_id` (string), `recorded_at` (ISO timestamp), `type` (enumeration/revisit), `zero_dose_answer` (boolean/null), `vaccinated_since_last` (string/null), `vaccinated_elsewhere` (boolean/null), `comment` (text/null)
