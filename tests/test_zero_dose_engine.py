@@ -9,7 +9,17 @@ Tests:
 6. Null revisit answers preserving existing flag
 7. Supervisor transitions aggregate endpoint
 """
+import os
+import tempfile
 import pytest
+
+# Point test suite to an isolated, guaranteed writable temporary SQLite DB
+TEST_DB_FILE = os.path.join(tempfile.gettempdir(), "test_zero_dose.db")
+os.environ["ZERO_DOSE_DB_PATH"] = TEST_DB_FILE
+
+import app.database as db_module
+db_module.DB_PATH = TEST_DB_FILE
+
 from app.engine import ZeroDoseEngine
 from app.database import (
     init_db, get_all_children, get_all_rounds,
@@ -20,7 +30,18 @@ from app.main import app
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_db():
+    if os.path.exists(TEST_DB_FILE):
+        try:
+            os.remove(TEST_DB_FILE)
+        except OSError:
+            pass
     init_db(force_reseed=True)
+    yield
+    if os.path.exists(TEST_DB_FILE):
+        try:
+            os.remove(TEST_DB_FILE)
+        except OSError:
+            pass
 
 @pytest.fixture
 def client():
@@ -79,7 +100,6 @@ def test_supervisor_transitions_endpoint(client):
     cids = [c["child_id"] for c in data["children"]]
     assert "C016" in cids
     assert "C040" in cids
-    # C043 should NOT be in the transitioned list due to correction back to zero-dose
     assert "C043" not in cids
 
 def test_record_new_revisit_endpoint(client):
