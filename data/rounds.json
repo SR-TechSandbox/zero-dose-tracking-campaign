@@ -1,0 +1,20 @@
+[
+  {
+    "round_id": "R1",
+    "name": "Enumeration Round",
+    "start_date": "2026-01-12",
+    "end_date": "2026-01-23"
+  },
+  {
+    "round_id": "R2",
+    "name": "Vaccination Round 1",
+    "start_date": "2026-03-09",
+    "end_date": "2026-03-20"
+  },
+  {
+    "round_id": "R3",
+    "name": "Vaccination Round 2",
+    "start_date": "2026-03-20",
+    "end_date": "2026-03-31"
+  }
+]

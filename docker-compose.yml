@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  zero-dose-tracker:
+    build: .
+    container_name: zero_dose_tracker_service
+    ports:
+      - "8000:8000"
+    environment:
+      - ZERO_DOSE_DB_PATH=/app/zero_dose.db
+      - ZERO_DOSE_DATA_DIR=/app/data
+    volumes:
+      - .:/app
+    restart: unless-stopped

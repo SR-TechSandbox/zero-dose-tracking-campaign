@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zero-Dose Campaign Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .badge-zero { background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+    .badge-vax { background-color: #dcfce7; color: #166534; border: 1px solid #4ade80; }
+    .badge-unknown { background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <header class="bg-indigo-900 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <span class="text-2xl font-black tracking-tight text-indigo-300">⚡ Zero-Dose</span>
+        <span class="text-sm bg-indigo-800 text-indigo-200 px-2.5 py-0.5 rounded font-medium">Campaign Tracker v0.1</span>
+      </div>
+      <div class="flex space-x-4">
+        <button id="nav-supervisor-btn" onclick="switchTab('supervisor')" class="px-3 py-1.5 rounded-md font-semibold text-sm bg-indigo-700 hover:bg-indigo-600 transition">
+          📊 Supervisor Dashboard
+        </button>
+        <button id="nav-children-btn" onclick="switchTab('children')" class="px-3 py-1.5 rounded-md font-semibold text-sm hover:bg-indigo-800 text-indigo-200 hover:text-white transition">
+          👶 Child Registry & Encounters
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6">
+
+    <!-- VIEW 1: SUPERVISOR DASHBOARD -->
+    <section id="supervisor-view" class="space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="text-xl font-bold text-slate-900 mb-2">Campaign Round Transition Aggregate</h2>
+        <p class="text-slate-600 text-sm mb-6">
+          Compare consecutive campaign rounds to identify children who moved from <span class="font-semibold text-red-700">Zero-Dose</span> to <span class="font-semibold text-green-700">Vaccinated</span>.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Starting Round</label>
+            <select id="select-from-round" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Target Consecutive Round</label>
+            <select id="select-to-round" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"></select>
+          </div>
+          <div>
+            <button onclick="fetchSupervisorTransitions()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded text-sm shadow transition">
+              Calculate Transitions
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transition Stats Card -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+          <div class="text-xs uppercase font-bold text-slate-500 tracking-wider">Children Reached & Vaccinated</div>
+          <div id="stat-transition-count" class="text-4xl font-black text-indigo-600 mt-2">--</div>
+          <div id="stat-round-label" class="text-xs text-slate-400 mt-1">Select rounds above</div>
+        </div>
+      </div>
+
+      <!-- Transitioned Children Table -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+          <h3 class="font-bold text-slate-800">Transitioned Children List</h3>
+          <span id="badge-total-records" class="text-xs font-semibold bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full">0 Records</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-100 text-slate-700 font-bold uppercase text-xs">
+              <tr>
+                <th class="px-6 py-3">Child ID</th>
+                <th class="px-6 py-3">Name</th>
+                <th class="px-6 py-3">Settlement</th>
+                <th class="px-6 py-3">Guardian</th>
+                <th class="px-6 py-3">Resolution Event</th>
+                <th class="px-6 py-3">Method</th>
+                <th class="px-6 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody id="transition-table-body" class="divide-y divide-slate-200">
+              <tr>
+                <td colspan="7" class="px-6 py-8 text-center text-slate-400">Select rounds and click Calculate to view data</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: CHILD REGISTRY & ENCOUNTERS -->
+    <section id="children-view" class="hidden space-y-6">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="relative flex-1">
+          <input type="text" id="child-search-input" oninput="debounceSearch()" placeholder="Search child by ID (e.g. C043), name, or settlement..."
+                 class="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 pl-10 text-sm shadow-sm focus:ring-2 focus:ring-indigo-500">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Children Registry Table -->
+        <div class="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 font-bold text-sm text-slate-800 flex justify-between">
+            <span>Children Registry</span>
+            <span id="children-count-label" class="text-xs text-slate-500 font-normal">Loading...</span>
+          </div>
+          <div id="children-list-container" class="divide-y divide-slate-100 max-h-[650px] overflow-y-auto"></div>
+        </div>
+
+        <!-- Detail & Record Encounter Panel -->
+        <div class="lg:col-span-2 space-y-6">
+          <div id="child-detail-card" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div class="text-center py-12 text-slate-400">
+              Select a child from the left panel to inspect full flag history or record a new encounter.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let roundsData = [];
+    let currentSelectedChild = null;
+    let searchDebounceTimer = null;
+
+    async function init() {
+      await loadRounds();
+      await fetchSupervisorTransitions();
+      await loadChildren();
+    }
+
+    function switchTab(tab) {
+      const supView = document.getElementById('supervisor-view');
+      const chView = document.getElementById('children-view');
+      const supBtn = document.getElementById('nav-supervisor-btn');
+      const chBtn = document.getElementById('nav-children-btn');
+
+      if (tab === 'supervisor') {
+        supView.classList.remove('hidden');
+        chView.classList.add('hidden');
+        supBtn.className = "px-3 py-1.5 rounded-md font-semibold text-sm bg-indigo-700 hover:bg-indigo-600 transition";
+        chBtn.className = "px-3 py-1.5 rounded-md font-semibold text-sm hover:bg-indigo-800 text-indigo-200 hover:text-white transition";
+      } else {
+        supView.classList.add('hidden');
+        chView.classList.remove('hidden');
+        chBtn.className = "px-3 py-1.5 rounded-md font-semibold text-sm bg-indigo-700 hover:bg-indigo-600 transition";
+        supBtn.className = "px-3 py-1.5 rounded-md font-semibold text-sm hover:bg-indigo-800 text-indigo-200 hover:text-white transition";
+      }
+    }
+
+    async function loadRounds() {
+      try {
+        const res = await fetch('/api/rounds');
+        roundsData = await res.json();
+        const fromSel = document.getElementById('select-from-round');
+        const toSel = document.getElementById('select-to-round');
+        fromSel.innerHTML = '';
+        toSel.innerHTML = '';
+
+        roundsData.forEach(r => {
+          const opt1 = document.createElement('option');
+          opt1.value = r.round_id;
+          opt1.textContent = `${r.round_id}: ${r.name}`;
+          fromSel.appendChild(opt1);
+
+          const opt2 = document.createElement('option');
+          opt2.value = r.round_id;
+          opt2.textContent = `${r.round_id}: ${r.name}`;
+          toSel.appendChild(opt2);
+        });
+
+        if (roundsData.length >= 2) {
+          fromSel.value = roundsData[0].round_id;
+          toSel.value = roundsData[1].round_id;
+        }
+      } catch (err) {
+        console.error('Failed to load rounds:', err);
+      }
+    }
+
+    async function fetchSupervisorTransitions() {
+      const fromRound = document.getElementById('select-from-round').value;
+      const toRound = document.getElementById('select-to-round').value;
+      if (!fromRound || !toRound) return;
+
+      try {
+        const res = await fetch(`/api/supervisor/transitions?from_round=${fromRound}&to_round=${toRound}`);
+        const data = await res.json();
+
+        document.getElementById('stat-transition-count').innerText = data.total_transitioned_count;
+        document.getElementById('stat-round-label').innerText = `${fromRound} (Zero-Dose) ➔ ${toRound} (Vaccinated)`;
+        document.getElementById('badge-total-records').innerText = `${data.total_transitioned_count} Children`;
+
+        const tbody = document.getElementById('transition-table-body');
+        if (data.children.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-6 text-center text-slate-400">No children transitioned between ${fromRound} and ${toRound}</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.children.map(ch => `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-6 py-3.5 font-bold text-slate-900">${ch.child_id}</td>
+            <td class="px-6 py-3.5 font-medium">${ch.name}</td>
+            <td class="px-6 py-3.5 text-slate-500">${ch.settlement}</td>
+            <td class="px-6 py-3.5 text-slate-500">${ch.guardian_name}</td>
+            <td class="px-6 py-3.5 font-mono text-xs text-indigo-700">${ch.resolved_event_id} (${new Date(ch.resolved_at).toLocaleDateString()})</td>
+            <td class="px-6 py-3.5">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${ch.confirmation_method.includes('External') ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}">
+                ${ch.confirmation_method}
+              </span>
+            </td>
+            <td class="px-6 py-3.5">
+              <button onclick="viewChildDetails('${ch.child_id}')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1 rounded">
+                Inspect ➔
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Error fetching transitions:', err);
+      }
+    }
+
+    async function loadChildren(searchTerm = '') {
+      try {
+        const url = searchTerm ? `/api/children?search=${encodeURIComponent(searchTerm)}` : '/api/children';
+        const res = await fetch(url);
+        const children = await res.json();
+
+        document.getElementById('children-count-label').innerText = `${children.length} total`;
+        const container = document.getElementById('children-list-container');
+        if (children.length === 0) {
+          container.innerHTML = `<div class="p-4 text-center text-slate-400 text-xs">No children found</div>`;
+          return;
+        }
+
+        container.innerHTML = children.map(c => `
+          <div onclick="selectChild('${c.child_id}')" class="p-3.5 hover:bg-indigo-50/50 cursor-pointer transition border-l-4 ${currentSelectedChild === c.child_id ? 'border-indigo-600 bg-indigo-50' : 'border-transparent'}">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="font-bold text-slate-900 text-sm">${c.name}</span>
+                <span class="text-xs text-slate-400 font-mono ml-1.5">${c.child_id}</span>
+              </div>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded ${c.current_zero_dose_flag ? 'badge-zero' : 'badge-vax'}">
+                ${c.status_label}
+              </span>
+            </div>
+            <div class="text-xs text-slate-500 mt-1 flex justify-between">
+              <span>${c.settlement}</span>
+              <span class="text-slate-400">${c.encounter_count} encounter(s)</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error loading children:', err);
+      }
+    }
+
+    function debounceSearch() {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        const query = document.getElementById('child-search-input').value;
+        loadChildren(query);
+      }, 250);
+    }
+
+    async function viewChildDetails(childId) {
+      switchTab('children');
+      await selectChild(childId);
+    }
+
+    async function selectChild(childId) {
+      currentSelectedChild = childId;
+      loadChildren(document.getElementById('child-search-input').value);
+
+      try {
+        const res = await fetch(`/api/children/${childId}`);
+        const c = await res.json();
+        renderChildDetailView(c);
+      } catch (err) {
+        console.error('Failed to load child detail:', err);
+      }
+    }
+
+    function renderChildDetailView(c) {
+      const container = document.getElementById('child-detail-card');
+      const isZeroDose = c.current_zero_dose_flag === true;
+      const statusBadge = isZeroDose
+        ? `<span class="badge-zero text-sm px-3 py-1 rounded-full font-bold">● Current Status: Zero-Dose</span>`
+        : `<span class="badge-vax text-sm px-3 py-1 rounded-full font-bold">✔ Current Status: Vaccinated</span>`;
+
+      container.innerHTML = `
+        <div class="border-b border-slate-200 pb-5 mb-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <h2 class="text-2xl font-black text-slate-900">${c.name}</h2>
+              <span class="text-sm font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">${c.child_id}</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Guardian: <span class="font-medium text-slate-700">${c.guardian_name}</span> | Settlement: <span class="font-medium text-slate-700">${c.settlement}</span> | DOB: ${c.dob}</p>
+          </div>
+          <div>${statusBadge}</div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center">
+              <svg class="w-4 h-4 mr-1.5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path></svg>
+              Zero-Dose Flag History (Audit Trail)
+            </h3>
+            <div class="space-y-3">
+              ${c.history.map(h => `
+                <div class="bg-white p-3 rounded shadow-sm border-l-4 ${h.new_status ? 'border-red-500' : 'border-green-500'}">
+                  <div class="flex justify-between items-center text-xs text-slate-500">
+                    <span class="font-bold text-slate-700">${h.round_id} (${h.source_type})</span>
+                    <span class="font-mono">${new Date(h.timestamp).toLocaleString()}</span>
+                  </div>
+                  <div class="text-xs font-semibold mt-1">
+                    Transition: <span class="text-slate-500">${h.previous_status === null ? 'None' : (h.previous_status ? 'Zero-Dose' : 'Vaccinated')}</span> ➔
+                    <span class="${h.new_status ? 'text-red-700 font-bold' : 'text-green-700 font-bold'}">${h.new_status ? 'Zero-Dose' : 'Vaccinated'}</span>
+                  </div>
+                  <div class="text-xs text-slate-600 mt-1 italic">${h.details}</div>
+                  <div class="text-[10px] text-slate-400 font-mono mt-1">Event: ${h.event_id}</div>
+                </div>
+              `).join('')}
+            </div>
+
+            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mt-5 mb-2">Raw Field Encounters (${c.encounters.length})</h4>
+            <div class="space-y-1.5 text-xs text-slate-600 max-h-48 overflow-y-auto">
+              ${c.encounters.map(e => `
+                <div class="bg-white p-2 rounded border border-slate-200">
+                  <span class="font-bold font-mono text-slate-800">${e.event_id}</span> | Round: ${e.round_id} | Type: ${e.type} |
+                  ${e.vaccinated_since_last ? `Vaccinated Since: <b class="text-indigo-600">${e.vaccinated_since_last}</b> |` : ''}
+                  ${e.vaccinated_elsewhere ? `Elsewhere: <b class="text-purple-600">Yes</b> |` : ''}
+                  ${e.comment ? `<span class="italic text-slate-500">"${e.comment}"</span>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="bg-indigo-50/50 p-5 rounded-lg border border-indigo-100 flex flex-col justify-between">
+            <div>
+              <h3 class="text-sm font-bold text-indigo-900 mb-1">Record New Field Revisit</h3>
+              <p class="text-xs text-indigo-700/80 mb-4">Adds encounter, updates zero-dose flag per campaign rules, and writes immutable audit record.</p>
+
+              <form id="record-encounter-form" onsubmit="submitNewEncounter(event)" class="space-y-4">
+                <input type="hidden" id="form-child-id" value="${c.child_id}">
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Campaign Round</label>
+                  <select id="form-round-id" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                    ${roundsData.map(r => `<option value="${r.round_id}">${r.round_id}: ${r.name}</option>`).join('')}
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Vaccinated since last campaign round?</label>
+                  <select id="form-vax-since" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="">-- Select Response --</option>
+                    <option value="yes">Yes (Vaccinated)</option>
+                    <option value="no">No (Unvaccinated / Zero-Dose)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Guardian Confirmed Vaccinated Elsewhere?</label>
+                  <select id="form-vax-elsewhere" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="">No / Not Applicable</option>
+                    <option value="true">Yes (Confirmed outside campaign)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Recorder Note / Comment (Optional)</label>
+                  <input type="text" id="form-comment" placeholder="e.g. Card verified, guardian travelling, correction note..."
+                         class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded text-sm shadow transition">
+                  Submit Encounter
+                </button>
+              </form>
+            </div>
+            <div id="form-feedback-message" class="mt-3 text-xs hidden"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function submitNewEncounter(event) {
+      event.preventDefault();
+      const childId = document.getElementById('form-child-id').value;
+      const roundId = document.getElementById('form-round-id').value;
+      const vaxSince = document.getElementById('form-vax-since').value || null;
+      const vaxElsewhereVal = document.getElementById('form-vax-elsewhere').value;
+      const vaxElsewhere = vaxElsewhereVal === 'true' ? true : null;
+      const comment = document.getElementById('form-comment').value.trim() || null;
+
+      const payload = {
+        child_id: childId,
+        round_id: roundId,
+        device_id: 'DEV-SUPERVISOR-PORTAL',
+        type: 'revisit',
+        vaccinated_since_last: vaxSince,
+        vaccinated_elsewhere: vaxElsewhere,
+        comment: comment
+      };
+
+      try {
+        const res = await fetch('/api/encounters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          await selectChild(childId);
+          await fetchSupervisorTransitions();
+        } else {
+          alert('Failed to record encounter.');
+        }
+      } catch (err) {
+        console.error('Submission error:', err);
+      }
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
