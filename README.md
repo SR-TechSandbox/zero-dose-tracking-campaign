@@ -41,6 +41,12 @@ docker compose exec zero-dose-tracker pytest
 pytest tests/
 ```
 
+> **Note on Permissions (Codespaces / Linux hosts):**  
+> If you encounter a `sqlite3.OperationalError: attempt to write a readonly database` due to Docker-to-host file permission differences on Linux/Codespaces mounts, run this command to ensure read/write access:
+> ```bash
+> chmod 666 zero_dose.db 2>/dev/null || true
+> ```
+
 ---
 
 ## Repository Structure
